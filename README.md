@@ -19,12 +19,9 @@ Two test batteries:
   and the exact 0.0011 stETH donation from the 2025 report on the live code
   (pool accrual 0 -> 71.35 MOR). Fork pin: Ethereum block 26436500.
 
-Setup (once): foundry.toml maps `forge-std/` to `lib-forge-std/src/`, so put
-forge-std v1.17.0 (the version these tests were validated with) there:
-
-  git clone --depth 1 --branch v1.17.0 https://github.com/foundry-rs/forge-std lib-forge-std
-
-Run it:
+No setup needed: forge-std v1.17.0 (the version these tests were validated
+with) is vendored under `lib-forge-std/src/`, which is where foundry.toml maps
+`forge-std/` to. Just clone and run:
 
   forge test
 
