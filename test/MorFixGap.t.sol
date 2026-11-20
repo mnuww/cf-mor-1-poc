@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // MORPHEUS CF-MOR-1 — FIX-GAP PROOF BATTERY (2026-11-18).
-// Tujuan tunggal: membuktikan DUA cabang fungsi distributeRewards yang sama pada
-// DistributorV2 TERDEPLOY (0xDf1AC1AC255d91F5f4B1E3B4Aef57c5350F64C7A):
-//   (i)  cabang kekurangan (balance_ < lastUnderlyingBalance): TIDAK revert, yield 0
-//        (= tambalan M-02 bekerja) — pra-perbaikan kode C4 mengurangi mentah dan revert.
-//   (ii) cabang donasi (transfer polos menaikkan balance_ di atas lastUnderlyingBalance):
-//        pertumbuhan dihitung sebagai yield dan MOR terakru ke pool (= permukaan
-//        Code4rena Low [01] hidup di kode yang sama, jumlah donasi persis [01]: 0,0011 stETH).
-// READ-ONLY vs mainnet: fork lokal saja; tidak ada tx mainnet.
-// Pin blok Ethereum: 26436500. RPC: https://ethereum.publicnode.com
+// Single purpose: prove BOTH branches of the same distributeRewards function on the
+// DEPLOYED DistributorV2 (0xDf1AC1AC255d91F5f4B1E3B4Aef57c5350F64C7A):
+//   (i)  shortfall branch (balance_ < lastUnderlyingBalance): does NOT revert, yield 0
+//        (= the M-02 patch works) — the pre-fix C4 code subtracted raw and reverted.
+//   (ii) donation branch (a plain transfer raises balance_ above lastUnderlyingBalance):
+//        the growth is counted as yield and MOR accrues to the pool (= the surface of
+//        Code4rena Low [01] lives on in the same code, exact donation amount of [01]: 0.0011 stETH).
+// READ-ONLY vs mainnet: local fork only; no mainnet tx.
+// Ethereum block pin: 26436500. RPC: https://ethereum.publicnode.com
 pragma solidity ^0.8.28;
 
 import "forge-std/Test.sol";
@@ -27,7 +27,7 @@ interface ISTETHFG {
 interface IDistributorFG {
     function distributeRewards(uint256 i) external;
     function getDistributedRewards(uint256 i, address p) external view returns (uint256);
-    // Bentuk tuple eksplisit (pola Mor1Deep) — urutan struct DepositPool:
+    // Explicit tuple form (Mor1Deep pattern) — DepositPool struct order:
     // token, chainLinkPath, tokenPrice, deposited, lastUnderlyingBalance, strategy, aToken, isExist
     function depositPools(uint256 i, address p)
         external
@@ -63,7 +63,7 @@ contract MorFixGap is Test {
 
     uint256 constant FORK_BLOCK = 26436500;
     string constant RPC = "https://ethereum.publicnode.com";
-    uint256 constant WARP_STEP = 90000; // > minRewardsDistributePeriod (86400, terbaca on-chain)
+    uint256 constant WARP_STEP = 90000; // > minRewardsDistributePeriod (86400, read on-chain)
 
     address attacker;
 
@@ -73,8 +73,8 @@ contract MorFixGap is Test {
         _unbrickFeeds();
     }
 
-    // Sama seperti baterai Mor1Deep: longgarkan batas kebasian feed di fork
-    // (prank pemilik CLDC) supaya warp tidak membekukan distributeRewards.
+    // Same as the Mor1Deep battery: loosen the feed staleness bound in the fork
+    // (prank the CLDC owner) so the warp does not freeze distributeRewards.
     function _unbrickFeeds() internal {
         address owner_ = IOwnableFG(CLDC).owner();
         address[5] memory pools = [POOL_STETH, POOL_WETH, POOL_WBTC, POOL_USDC, POOL_USDT];
@@ -91,7 +91,7 @@ contract MorFixGap is Test {
         vm.stopPrank();
     }
 
-    // stETH balanceOf berbasis shares; tulis shares langsung (pola MorpheusRun1._dealStETH).
+    // stETH balanceOf is share-based; write shares directly (MorpheusRun1._dealStETH pattern).
     function _setStETHBalance(address to, uint256 wantBal) internal {
         for (uint256 slot = 0; slot < 20; slot++) {
             bytes32 key = keccak256(abi.encode(to, slot));
@@ -122,7 +122,7 @@ contract MorFixGap is Test {
         return IERC20FG(STETH).balanceOf(DIST);
     }
 
-    // (i) KASUS KEKURANGAN — saldo aktual < saldo tercatat.
+    // (i) SHORTFALL CASE — actual balance < recorded balance.
     function testFixGap_ShortfallBranch_NoRevertNoMint() public {
         require(_distribute(), "settle distribute failed");
         uint256 lub1 = _lub();
@@ -133,7 +133,7 @@ contract MorFixGap is Test {
         console.log("FG_SHORT settle_dr", dr1);
         assertApproxEqAbs(lub1, bal1, 2, "after settle recorded must equal actual");
 
-        // Simulasi penurunan saldo (rebase negatif / shortfall): -1 stETH persis dari saldo.
+        // Simulate a balance drop (negative rebase / shortfall): exactly -1 stETH from the balance.
         _setStETHBalance(DIST, bal1 - 1 ether);
         uint256 bal2 = _bal();
         console.log("FG_SHORT reduced_bal", bal2);
@@ -159,7 +159,7 @@ contract MorFixGap is Test {
         assertApproxEqAbs(lub2, bal2, 2, "recorded balance must reset down to actual");
     }
 
-    // (ii) KASUS DONASI — transfer polos di atas saldo tercatat (skenario persis C4 Low [01]).
+    // (ii) DONATION CASE — plain transfer on top of the recorded balance (exact C4 Low [01] scenario).
     function testFixGap_DonationBranch_CountsAsYield() public {
         require(_distribute(), "settle distribute failed");
         uint256 dr1 = _dr();
@@ -167,7 +167,7 @@ contract MorFixGap is Test {
         console.log("FG_DON settle_lub", _lub());
         console.log("FG_DON settle_bal", _bal());
 
-        // Kontrol: satu periode penuh TANPA donasi (hari tanpa yield untuk pool stETH di fork).
+        // Control: one full period with NO donation (a zero-yield day for the stETH pool in the fork).
         uint128 ts0 = IDistributorFG(DIST).rewardPoolLastCalculatedTimestamp(0);
         vm.warp(block.timestamp + WARP_STEP);
         uint256 periodRewards1 = IRewardPoolFG(REW).getPeriodRewards(0, ts0, uint128(block.timestamp));
@@ -177,7 +177,7 @@ contract MorFixGap is Test {
         console.log("FG_DON control_dr_delta", dr2 - dr1);
         assertEq(dr2 - dr1, 0, "control: zero-yield period must accrue 0 to stETH pool");
 
-        // Donasi persis [01]: 0,0011 stETH, transfer polos ke Distributor, tanpa panggilan pool.
+        // Exact donation of [01]: 0.0011 stETH, plain transfer to the Distributor, no pool call.
         _setStETHBalance(attacker, 0.0011 ether);
         uint256 atkBal = IERC20FG(STETH).balanceOf(attacker);
         uint256 distBalBefore = _bal();
@@ -202,13 +202,13 @@ contract MorFixGap is Test {
         assertApproxEqAbs(_lub(), _bal(), 2, "recorded balance must equal actual after distribution");
     }
 
-    // (iii) PERILAKU CABANG BARU PADA LUBANG (mata rantai 8) — dua fase:
-    //   Fase A: yield jujur yang tiba SELAGI saldo masih di dalam lubang (bal < LUB)
-    //           terserap tanpa dihitung (DR delta 0) dan LUB di-reset turun ke saldo aktual.
-    //   Fase B: sesudah reset, saldo yang hanya kembali ke level ASAL (== saldo settle)
-    //           menghasilkan DR delta > 0 — alas ukur sudah pindah turun, jadi yield
-    //           pasca-reset dihitung penuh dari alas baru (di bawah semantik high-water
-    //           mark lama, fase B akan bernilai 0).
+    // (iii) NEW BRANCH BEHAVIOR ON A HOLE (chain link 8) — two phases:
+    //   Phase A: honest yield that arrives WHILE the balance is still inside the hole (bal < LUB)
+    //           is absorbed uncounted (DR delta 0) and LUB is reset down to the actual balance.
+    //   Phase B: after the reset, a balance that only returns to the ORIGINAL level (== settle balance)
+    //           produces DR delta > 0 — the measurement base has moved down, so post-reset
+    //           yield is counted in full from the new base (under the old high-water-mark
+    //           semantics, phase B would be worth 0).
     function testFixGap_ShortfallAbsorptionAndBaseReset() public {
         require(_distribute(), "settle distribute failed");
         uint256 bal0 = _bal();
@@ -219,9 +219,9 @@ contract MorFixGap is Test {
         console.log("FG_ABS settle_dr", dr0);
         assertApproxEqAbs(lub0, bal0, 2, "settle: recorded equals actual");
 
-        // Lubang: -1 stETH (rebase negatif / shortfall).
+        // Hole: -1 stETH (negative rebase / shortfall).
         _setStETHBalance(DIST, bal0 - 1 ether);
-        // Yield jujur +0,5 stETH tiba SELAGI masih di dalam lubang.
+        // Honest yield of +0.5 stETH arrives WHILE still inside the hole.
         _setStETHBalance(DIST, bal0 - 0.5 ether);
         uint256 balA = _bal();
         console.log("FG_ABS phaseA_bal_in_hole", balA);
@@ -236,7 +236,7 @@ contract MorFixGap is Test {
         assertEq(drA - dr0, 0, "phase A: honest yield inside the hole must be absorbed uncounted");
         assertApproxEqAbs(lubA, balA, 2, "phase A: recorded balance must reset down to actual");
 
-        // Fase B: +0,5 stETH lagi — saldo hanya kembali ke level settle asal.
+        // Phase B: +0.5 stETH more — the balance only returns to the original settle level.
         _setStETHBalance(DIST, balA + 0.5 ether);
         uint256 balB = _bal();
         console.log("FG_ABS phaseB_bal_back_to", balB);
