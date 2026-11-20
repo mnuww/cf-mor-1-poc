@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-// MORPHEUS CF-MOR-1 DEEP BATTERY — 2026-11-17 23:07 WIB (perintah user: perdalam CF-MOR-1).
-// READ-ONLY vs mainnet: fork lokal saja; tidak ada tx mainnet, tidak ada signing, tidak ada kontak dev.
-// Pin blok: 26435255 (pin run 1; run 2 memakai 26435687 — angka run 2 dikutip dengan pin-nya).
+// MORPHEUS CF-MOR-1 DEEP BATTERY — 2026-11-17 23:07 WIB (user instruction: deepen CF-MOR-1).
+// READ-ONLY vs mainnet: local fork only; no mainnet tx, no signing, no dev contact.
+// Block pin: 26435255 (run 1 pin; run 2 used 26435687 — run 2 figures are quoted with their own pin).
 // RPC: https://ethereum.publicnode.com
-// Kaki: D0 kontrol pin ini; D1-D7 tuning (1b); D8-D9 kaki klaim + stale (1c);
-//       D10-D12 varian aneh (1d): flash-loan, sweep publik, pool baru, staker kontrak.
+// Legs: D0 control at this pin; D1-D7 tuning (1b); D8-D9 claim + stale legs (1c);
+//       D10-D12 odd variants (1d): flash-loan, public sweep, new pool, contract staker.
 pragma solidity ^0.8.28;
 
 import "forge-std/Test.sol";
